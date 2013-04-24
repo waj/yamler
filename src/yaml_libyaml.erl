@@ -10,8 +10,7 @@
 -on_load(nif_init/0).
 
 -export([binary_to_libyaml_event_stream/1]).
--export_type([event/0]).
-
+-export_type([event/0,scalar_style/0]).
 
 %% miscellaneous libyaml structs
 
@@ -98,8 +97,7 @@ nif_init() ->
 %% @private
 %% @doc Helper for exiting gracefully when NIF can't be loaded.
 %% @end
--spec not_loaded(pos_integer()) -> ok.
-not_loaded(Line) -> exit({not_loaded, [{module, ?MODULE}, {line, Line}]}).
+not_loaded(Line) -> erlang:nif_error({not_loaded, [{module, ?MODULE}, {line, Line}]}).
 
 -spec binary_to_libyaml_event_stream(binary()) -> {ok, [event()]}
                                                 | {error, {error_type(), binary()}}.

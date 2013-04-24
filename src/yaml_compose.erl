@@ -79,15 +79,15 @@ compose_doc(State0 = #state{events=[{document_start, _,_,_}, {document_end, _,_,
 	State1 = State0#state{events=Rest},
 	{ok, null, State1};
 
-% normal document case    
+% normal document case
 compose_doc(State0 = #state{events=[{document_start, _,_,_} | Rest]}) ->
 	State1 = State0#state{events=Rest},
 	{{_ResolvedTag, ConstructedValue}, State2} = compose_node(State1),
-	
+
 	% remove document_end
 	[{document_end, _,_,_} | Rest2] = State2#state.events,
 	State3 = State2#state{events=Rest2},
-	
+
 	{ok, ConstructedValue, State3};
 
 % stream end case
@@ -96,8 +96,8 @@ compose_doc(State0 = #state{events=[{stream_end, _,_,_}]}) ->
 	{stream_end, State1}.
 
 
--spec compose_node(#state{}) -> {ynode(), #state{}}. 
-% handle scalar    
+-spec compose_node(#state{}) -> {ynode(), #state{}}.
+% handle scalar
 compose_node(State0 = #state{
 							 events=[Head={scalar, {Anchor,Tag,Value,Style},_,_} |Rest],
 							 schema = Schema,
@@ -165,7 +165,7 @@ compose_node(State0 = #state{
 
 
 
--spec compose_sequence([ynode()], #state{}) -> {sequence(), #state{}}. 
+-spec compose_sequence([ynode()], #state{}) -> {sequence(), #state{}}.
 compose_sequence(ConstructedValues, State0 = #state{
 													events=[{sequence_end, _,_,_} |Rest]}) ->
 	State1 = State0#state{events=Rest},
@@ -176,12 +176,12 @@ compose_sequence(ConstructedValues, State0) ->
 	compose_sequence([ConstructedValue|ConstructedValues], State1).
 
 
--spec compose_mapping(#state{}) -> {mapping(), #state{}}. 
+-spec compose_mapping(#state{}) -> {mapping(), #state{}}.
 compose_mapping(State) -> compose_mapping(dict:new(), dict:new(), State).
 compose_mapping(Map0, Merge, State0 = #state{
 											 events=[{mapping_end, _,_,_} |Rest]}) ->
 	State1 = State0#state{events=Rest},
-	
+
 	% notes from http://yaml.org/type/merge.html
 	% - merged keys do not overwrite any other keys
 	% - latter merged keys do not overwrite earlier merged keys
@@ -196,7 +196,7 @@ compose_mapping(Map0, Merge, State0 = #state{
 compose_mapping(Map0, Merge0, State0) ->
 	{{ KTag, Key}, State1} = compose_node(State0),
 	{{ VTag, Value}, State2} = compose_node(State1),
-	
+
 	case {KTag, VTag} of
 		{'tag:yaml.org,2002:merge', 'tag:yaml.org,2002:map'} ->
 			Merge1 = case catch merge_list_unique(Value, Merge0) of
@@ -220,6 +220,7 @@ compose_mapping(Map0, Merge0, State0) ->
 			compose_mapping(Map1, Merge0, State2)
 	end.
 
+-spec merge_error(term()) -> no_return().
 merge_error(Event) ->
 	throw_error("Merge value must be mapping or sequence of mappings", Event).
 
@@ -243,7 +244,7 @@ when
   Value :: term(),
   Event :: yaml_libyaml:event(),
   State :: #state{}.
-														  
+
 maybe_anchor(null, _Value, _Event, State0) -> State0;
 maybe_anchor(Anchor, Value, Event, State0=#state{anchors=Anchors0}) ->
 	case dict:is_key(Anchor, Anchors0) of
