@@ -1,25 +1,4 @@
-%%
-%% @author Daniel Goertzen <daniel.goertzen@gmail.com>
-%% @copyright 2012 Daniel Goertzen
-%% %@license See file /LICENSE
-%%
-%% @doc Minimal schema implementing the Failsafe Schema as per Yaml 1.2 section 10.1.
-%%
-%% Schemas perform 2 tasks; tag resolution and value construction.
-%%
-%% For tag resolution the schema module produces a fully resolved tag for every node in the document.
-%% This is typically done by examining the tag provided in the yaml document, or when no tag is present, by
-%% inferring the tag based on the value of the node.
-%%
-%% For value construction the schema module produces an erlang term given the value and previously
-%% resolved tag.
-%%
-%% All tags and values provided as parameters are utf8 binaries regardless of the actual encoding of
-%% the yaml file.  The parser will automatically convert tags of the form "!!xxx" to
-%% "tag:yaml.org,2002:xxx".
-%%
-
--module(yaml_schema_failsafe).
+-module(yaml_schema_ruby).
 
 -behaviour(yaml_schema).
 
@@ -40,24 +19,27 @@ destroy(_State) -> ok.
 
 %% @doc Resolve a mapping tag.  Return nomatch if the tag is invalid.
 -spec resolve_mapping_tag( Tag::null | binary(), Value::binary(), State::term() ) ->
-		  {ok, ResolvedTag::term()} | nomatch.
+      {ok, ResolvedTag::term()} | nomatch.
 resolve_mapping_tag(Tag, _Value, _State) -> resolve_mapping_tag(Tag).
 
 resolve_mapping_tag(<<"!">>)                     -> {ok, 'tag:yaml.org,2002:map'};
 resolve_mapping_tag(<<"tag:yaml.org,2002:map">>) -> {ok, 'tag:yaml.org,2002:map'};
 resolve_mapping_tag(null)                        -> {ok, 'tag:yaml.org,2002:map'};
-resolve_mapping_tag(_)                           -> nomatch.
+resolve_mapping_tag(<<"!ruby/hash:ActiveSupport::HashWithIndifferentAccess">>) ->
+  {ok, 'tag:yaml.org,2002:map'};
+resolve_mapping_tag(<<"!ruby/object:", _/binary>>) ->
+  {ok, 'tag:yaml.org,2002:map'}.
 
 %% @doc Construct a mapping.  Return nomatch if the tag is invalid.
 -spec construct_mapping(ResolvedTag::term(), Value::binary(), State::term()) ->
-		  {ok, ConstructedValue::term()} | nomatch.
+      {ok, ConstructedValue::term()} | nomatch.
 construct_mapping('tag:yaml.org,2002:map', Value, _State) -> {ok, Value};
 construct_mapping(_, _, _State) -> nomatch.
 
 
 %% @doc Resolve a sequence tag.  Return nomatch if the tag is invalid.
 -spec resolve_sequence_tag( Tag::null | binary(), Value::binary(), State::term() ) ->
-		  {ok, ResolvedTag::term()} | nomatch.
+      {ok, ResolvedTag::term()} | nomatch.
 resolve_sequence_tag(Tag, _Value, _State) -> resolve_sequence_tag(Tag).
 resolve_sequence_tag(<<"!">>)                     -> {ok, 'tag:yaml.org,2002:seq'};
 resolve_sequence_tag(<<"tag:yaml.org,2002:seq">>) -> {ok, 'tag:yaml.org,2002:seq'};
@@ -66,42 +48,49 @@ resolve_sequence_tag(_)                           -> nomatch.
 
 %% @doc Construct a sequence.  Return nomatch if the tag is invalid.
 -spec construct_sequence(ResolvedTag::term(), Value::binary(), State::term()) ->
-		  {ok, ConstructedValue::term()} | nomatch.
+      {ok, ConstructedValue::term()} | nomatch.
 construct_sequence('tag:yaml.org,2002:seq', Value, _State) -> {ok, Value};
 construct_sequence(_, _, _State) -> nomatch.
 
 %% @doc Resolve a scalar tag.  Return nomatch if the tag is invalid.
 -spec resolve_scalar_tag( Tag::null | binary(), Value::binary(), Style::yaml_libyaml:scalar_style(), State::term() ) ->
-		  {ok, ResolvedTag::term()} | nomatch.
-resolve_scalar_tag(Tag, _Value, _Style, _State) -> resolve_scalar_tag(Tag).
-resolve_scalar_tag(<<"!">>)                     -> {ok, 'tag:yaml.org,2002:str'};
-resolve_scalar_tag(<<"tag:yaml.org,2002:str">>) -> {ok, 'tag:yaml.org,2002:str'};
-resolve_scalar_tag(null)                        -> {ok, 'tag:yaml.org,2002:str'};
-resolve_scalar_tag(_)                           -> nomatch.
+      {ok, ResolvedTag::term()} | nomatch.
+resolve_scalar_tag(<<"!">>, _, _, _)                     -> {ok, 'tag:yaml.org,2002:str'};
+resolve_scalar_tag(<<"tag:yaml.org,2002:str">>, _, _, _) -> {ok, 'tag:yaml.org,2002:str'};
+
+resolve_scalar_tag(null, <<$:, _/binary>>, plain, _)     -> {ok, '!ruby/symbol'};
+resolve_scalar_tag(null, Value, plain, _) ->
+  case re:run(Value, "^\\d+$", [{capture, none}]) of
+    match   -> {ok, 'tag:yaml.org,2002:int'};
+    nomatch -> {ok, 'tag:yaml.org,2002:str'}
+  end;
+
+resolve_scalar_tag(null, _, _, _)                        -> {ok, 'tag:yaml.org,2002:str'}.
 
 %% @doc Construct a scalar.  Return nomatch if the tag is invalid.
 -spec construct_scalar(ResolvedTag::term(), Value::binary(), State::term()) ->
-		  {ok, ConstructedValue::term()} | nomatch.
-construct_scalar('tag:yaml.org,2002:str', Value, _State) -> {ok, Value};
+      {ok, ConstructedValue::term()} | nomatch.
+construct_scalar('tag:yaml.org,2002:str', Value, _State) ->
+  {ok, binary_to_list(Value)};
+
+construct_scalar('!ruby/symbol', <<$:, Atom/binary>>, _State) ->
+  {ok, binary_to_atom(Atom, utf8)};
+
+construct_scalar('tag:yaml.org,2002:int', Value, _State) ->
+  {ok, list_to_integer(binary_to_list(Value))};
+
 construct_scalar(_, _, _State) -> nomatch.
 
-marshal(List, State) when is_list(List) ->
-  case io_lib:printable_list(List) of
-    true -> marshal_scalar(List, State);
-    _ -> case is_map_list(List) of
-      true -> {map, List, null};
-      _ -> {sequence, List, null}
-    end
+marshal(Object, State) when is_list(Object) or is_binary(Object) ->
+  case yaml_schema_failsafe:marshal(Object, State) of
+    Scalar = {scalar, Value, Tag, _Style} ->
+      case resolve_scalar_tag(Tag, Value, plain, State) of
+        {ok, 'tag:yaml.org,2002:str'} -> Scalar;
+        _ -> {scalar, Value, Tag, single_quoted}
+      end;
+    X -> X
   end;
-marshal(Object, State) -> marshal_scalar(Object, State).
-
-marshal_scalar(Binary, _State) when is_binary(Binary) -> {scalar, Binary, null, any};
-marshal_scalar(List, State) when is_list(List) -> marshal_scalar(list_to_binary(List), State);
-marshal_scalar(Integer, State) when is_integer(Integer) -> marshal_scalar(integer_to_list(Integer), State);
-marshal_scalar(Float, State) when is_float(Float) -> marshal_scalar(io_lib:format("~p", [Float]), State).
-
-is_map_list(List) ->
-  lists:all(fun
-    ({_, _}) -> true;
-    (_) -> false
-  end, List).
+marshal(Atom, State) when is_atom(Atom) ->
+  AtomBin = atom_to_binary(Atom, utf8),
+  yaml_schema_failsafe:marshal(<<$:, AtomBin/binary>>, State);
+marshal(Object, State) -> yaml_schema_failsafe:marshal(Object, State).

@@ -9,7 +9,7 @@
 -module(yaml_libyaml).
 -on_load(nif_init/0).
 
--export([binary_to_libyaml_event_stream/1]).
+-export([binary_to_libyaml_event_stream/1, libyaml_emit/1]).
 -export_type([event/0,scalar_style/0]).
 
 %% miscellaneous libyaml structs
@@ -109,3 +109,6 @@ binary_to_libyaml_event_stream(Bin) when is_binary(Bin) ->
 
 binary_to_libyaml_event_stream_rev(_Bin) ->
 	not_loaded(?LINE).
+
+libyaml_emit(_Events) ->
+  not_loaded(?LINE).

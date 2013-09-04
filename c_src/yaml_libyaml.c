@@ -246,9 +246,98 @@ parser_done:
     return TUPLE2(status, term);
 }
 
+static void
+initialize_scalar_event(ErlNifEnv* env, const ERL_NIF_TERM *elements, yaml_event_t *event)
+{
+  int argc;
+  const ERL_NIF_TERM *args;
+  yaml_char_t *tag = NULL;
+  ErlNifBinary tagBin;
+  ErlNifBinary bin;
+  yaml_scalar_style_t style;
+
+  enif_get_tuple(env, elements[1], &argc, &args);
+
+  if (enif_is_binary(env, args[1])) {
+    enif_inspect_binary(env, args[1], &tagBin);
+    tag = tagBin.data;
+  }
+
+  if (enif_compare(args[3], ATOM("single_quoted")) == 0) {
+    style = YAML_SINGLE_QUOTED_SCALAR_STYLE;
+  } else {
+    style = YAML_ANY_SCALAR_STYLE;
+  }
+
+  enif_inspect_binary(env, args[2], &bin);
+  yaml_scalar_event_initialize(event, NULL, tag, (yaml_char_t*)bin.data, bin.size, tag == NULL ? 1 : 0, tag == NULL ? 1 : 0, style);
+}
+
+static void
+term_to_event(ErlNifEnv* env, ERL_NIF_TERM term, yaml_event_t *event)
+{
+  int arity;
+  const ERL_NIF_TERM *elements;
+
+  enif_get_tuple(env, term, &arity, &elements);
+  if (arity == 0 || !enif_is_atom(env, elements[0])) {
+    printf("Todo mal!!\n"); fflush(stdout);
+  }
+
+  if (enif_compare(elements[0], ATOM("stream_start")) == 0) {
+    yaml_stream_start_event_initialize(event, YAML_ANY_ENCODING);
+  } else if (enif_compare(elements[0], ATOM("stream_end")) == 0) {
+    yaml_stream_end_event_initialize(event);
+  } else if (enif_compare(elements[0], ATOM("document_start")) == 0) {
+    yaml_document_start_event_initialize(event, NULL, NULL, NULL, 0);
+  } else if (enif_compare(elements[0], ATOM("document_end")) == 0) {
+    yaml_document_end_event_initialize(event, 0);
+  } else if (enif_compare(elements[0], ATOM("scalar")) == 0) {
+    initialize_scalar_event(env, elements, event);
+  } else if (enif_compare(elements[0], ATOM("sequence_start")) == 0) {
+    yaml_sequence_start_event_initialize(event, NULL, NULL, 1, YAML_ANY_SEQUENCE_STYLE);
+  } else if (enif_compare(elements[0], ATOM("sequence_end")) == 0) {
+    yaml_sequence_end_event_initialize(event);
+  } else if (enif_compare(elements[0], ATOM("mapping_start")) == 0) {
+    yaml_mapping_start_event_initialize(event, NULL, NULL, 1, YAML_ANY_MAPPING_STYLE);
+  } else if (enif_compare(elements[0], ATOM("mapping_end")) == 0) {
+    yaml_mapping_end_event_initialize(event);
+  } else {
+    printf("???\n"); fflush(stdout);
+  }
+}
+
+static ERL_NIF_TERM
+libyaml_emit(ErlNifEnv* env, int argc UNUSED, const ERL_NIF_TERM argv[])
+{
+  yaml_emitter_t emitter;
+  yaml_event_t event;
+  ERL_NIF_TERM list = argv[0];
+  ERL_NIF_TERM event_term;
+  unsigned char *output;
+  size_t output_written;
+
+  output = (unsigned char*) malloc(1024);
+
+  yaml_emitter_initialize(&emitter);
+  yaml_emitter_set_output_string(&emitter, output, 1024, &output_written);
+
+  while (enif_get_list_cell(env, list, &event_term, &list)) {
+    term_to_event(env, event_term, &event);
+    if (!yaml_emitter_emit(&emitter, &event)) {
+      printf("%s\n", emitter.problem); fflush(stdout);
+    }
+  }
+
+  yaml_emitter_flush(&emitter);
+  yaml_emitter_delete(&emitter);
+  return MEMORY(output, output_written);
+}
+
 
 static ErlNifFunc nif_funcs[] = {
-    {"binary_to_libyaml_event_stream_rev", 1, binary_to_libyaml_event_stream_rev}
+    {"binary_to_libyaml_event_stream_rev", 1, binary_to_libyaml_event_stream_rev},
+    {"libyaml_emit", 1, libyaml_emit}
 };
 
 
