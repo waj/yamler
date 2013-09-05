@@ -309,6 +309,26 @@ term_to_event(ErlNifEnv* env, ERL_NIF_TERM term, yaml_event_t *event)
   }
 }
 
+typedef struct {
+  unsigned char *buffer;
+  size_t capacity;
+  size_t size;
+} output_t;
+
+int binary_emitter(void *data, unsigned char *buffer, size_t size) {
+  output_t *output = data;
+  if (output->size + size > output->capacity) {
+    while (output->size + size > output->capacity)
+      output->capacity *= 2;
+    output->buffer = realloc(output->buffer, output->capacity);
+  }
+
+  memcpy(output->buffer + output->size, buffer, size);
+  output->size += size;
+
+  return 1;
+}
+
 static ERL_NIF_TERM
 libyaml_emit(ErlNifEnv* env, int argc UNUSED, const ERL_NIF_TERM argv[])
 {
@@ -316,13 +336,15 @@ libyaml_emit(ErlNifEnv* env, int argc UNUSED, const ERL_NIF_TERM argv[])
   yaml_event_t event;
   ERL_NIF_TERM list = argv[0];
   ERL_NIF_TERM event_term;
-  unsigned char *output;
-  size_t output_written;
+  output_t output;
+  ERL_NIF_TERM result;
 
-  output = (unsigned char*) malloc(1024);
+  output.capacity = 1024;
+  output.size = 0;
+  output.buffer = (unsigned char*) malloc(output.capacity);
 
   yaml_emitter_initialize(&emitter);
-  yaml_emitter_set_output_string(&emitter, output, 1024, &output_written);
+  yaml_emitter_set_output(&emitter, binary_emitter, &output);
 
   while (enif_get_list_cell(env, list, &event_term, &list)) {
     term_to_event(env, event_term, &event);
@@ -333,7 +355,10 @@ libyaml_emit(ErlNifEnv* env, int argc UNUSED, const ERL_NIF_TERM argv[])
 
   yaml_emitter_flush(&emitter);
   yaml_emitter_delete(&emitter);
-  return MEMORY(output, output_written);
+  result = MEMORY(output.buffer, output.size);
+
+  free(output.buffer);
+  return result;
 }
 
 

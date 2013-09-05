@@ -51,3 +51,10 @@ map_test_() ->
       {?MAP([]) ++ ?MAP([]), <<"---\n{}: {}\n...\n">>}
     ]
   ].
+
+nested_list(0, L) -> L;
+nested_list(N, L) -> nested_list(N - 1, [L]).
+
+large_object_test() ->
+  X = yaml_libyaml:libyaml_emit(yaml_emitter:emit(nested_list(10000, []))),
+  ?assert(erlang:byte_size(X) > 10000).
