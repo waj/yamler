@@ -276,6 +276,26 @@ initialize_scalar_event(ErlNifEnv* env, const ERL_NIF_TERM *elements, yaml_event
 }
 
 static void
+initialize_mapping_start_event(ErlNifEnv *env, const ERL_NIF_TERM *elements, yaml_event_t *event)
+{
+  int argc;
+  const ERL_NIF_TERM *args;
+  yaml_char_t *tag = NULL;
+  ErlNifBinary tagBin;
+
+  enif_get_tuple(env, elements[1], &argc, &args);
+
+  if (enif_is_binary(env, args[1])) {
+    enif_inspect_binary(env, args[1], &tagBin);
+    tag = (yaml_char_t*) strndup((const char *)tagBin.data, tagBin.size);
+  }
+
+  yaml_mapping_start_event_initialize(event, NULL, tag, tag == NULL ? 1 : 0, YAML_ANY_MAPPING_STYLE);
+
+  if (tag != NULL) free(tag);
+}
+
+static void
 term_to_event(ErlNifEnv* env, ERL_NIF_TERM term, yaml_event_t *event)
 {
   int arity;
@@ -301,7 +321,7 @@ term_to_event(ErlNifEnv* env, ERL_NIF_TERM term, yaml_event_t *event)
   } else if (enif_compare(elements[0], ATOM("sequence_end")) == 0) {
     yaml_sequence_end_event_initialize(event);
   } else if (enif_compare(elements[0], ATOM("mapping_start")) == 0) {
-    yaml_mapping_start_event_initialize(event, NULL, NULL, 1, YAML_ANY_MAPPING_STYLE);
+    initialize_mapping_start_event(env, elements, event);
   } else if (enif_compare(elements[0], ATOM("mapping_end")) == 0) {
     yaml_mapping_end_event_initialize(event);
   } else {

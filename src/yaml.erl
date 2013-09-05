@@ -7,7 +7,7 @@
 
 -module(yaml).
 
--export([load/1, load/2, load_file/1, load_file/2, dump/2]).
+-export([load/1, load/2, load_file/1, load_file/2, dump/1, dump/2]).
 
 %% @equiv load(YamlStream, [])
 load(YamlStream) -> load(YamlStream, []).
@@ -40,6 +40,9 @@ load_file(Filename, Opts) ->
 			load(YamlStream, Opts);
 		Else -> Else
 	end.
+
+dump(Object) ->
+	dump(Object, []).
 
 dump(Object, Opts) ->
 	YamlStream = yaml_emitter:emit(Object, Opts),

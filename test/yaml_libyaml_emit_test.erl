@@ -52,6 +52,10 @@ map_test_() ->
     ]
   ].
 
+map_with_tag_test() ->
+  Yaml = yaml_libyaml:libyaml_emit(?DOC([{mapping_start, {null, <<"!foo">>, any}}, {mapping_end}])),
+  ?assertEqual(<<"--- !foo {}\n...\n">>, Yaml).
+
 nested_list(0, L) -> L;
 nested_list(N, L) -> nested_list(N - 1, [L]).
 
