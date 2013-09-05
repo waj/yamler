@@ -12,11 +12,11 @@ scalar_test() ->
   ?assertEqual(?DOC([{scalar, {null, null, <<"foo">>, any}}]), yaml_emitter:emit(<<"foo">>)),
   ?assertEqual(?DOC([{scalar, {null, null, <<"123">>, any}}]), yaml_emitter:emit(123)),
   ?assertEqual(?DOC([{scalar, {null, null, <<"123.456">>, any}}]), yaml_emitter:emit(123.456)),
-  ?assertEqual(?DOC([{scalar, {null, null, <<"">>}, any}]), yaml_emitter:emit([])).
+  ?assertEqual(?DOC([{scalar, {null, null, <<"">>, any}}]), yaml_emitter:emit([])).
 
 list_test() ->
   ?assertEqual(?DOC(?SEQ([])), yaml_emitter:emit({sequence, []})),
-  ?assertEqual(?DOC(?SEQ([{scalar, {null, null, <<"foo">>, any}}, {scalar, {null, null, <<"bar">>}}])),
+  ?assertEqual(?DOC(?SEQ([{scalar, {null, null, <<"foo">>, any}}, {scalar, {null, null, <<"bar">>, any}}])),
     yaml_emitter:emit(["foo", "bar"])).
 
 map_test() ->

@@ -260,7 +260,7 @@ initialize_scalar_event(ErlNifEnv* env, const ERL_NIF_TERM *elements, yaml_event
 
   if (enif_is_binary(env, args[1])) {
     enif_inspect_binary(env, args[1], &tagBin);
-    tag = tagBin.data;
+    tag = (yaml_char_t*) strndup((const char *)tagBin.data, tagBin.size);
   }
 
   if (enif_compare(args[3], ATOM("single_quoted")) == 0) {
@@ -271,6 +271,8 @@ initialize_scalar_event(ErlNifEnv* env, const ERL_NIF_TERM *elements, yaml_event
 
   enif_inspect_binary(env, args[2], &bin);
   yaml_scalar_event_initialize(event, NULL, tag, (yaml_char_t*)bin.data, bin.size, tag == NULL ? 1 : 0, tag == NULL ? 1 : 0, style);
+
+  if (tag != NULL) free(tag);
 }
 
 static void
