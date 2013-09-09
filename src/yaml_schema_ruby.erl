@@ -58,6 +58,9 @@ construct_sequence(_, _, _State) -> nomatch.
 resolve_scalar_tag(<<"!">>, _, _, _)                     -> {ok, 'tag:yaml.org,2002:str'};
 resolve_scalar_tag(<<"tag:yaml.org,2002:str">>, _, _, _) -> {ok, 'tag:yaml.org,2002:str'};
 
+resolve_scalar_tag(null, <<"true">>, plain, _State)      -> {ok, 'tag:yaml.org,2002:bool'};
+resolve_scalar_tag(null, <<"false">>, plain, _State)      -> {ok, 'tag:yaml.org,2002:bool'};
+
 resolve_scalar_tag(null, <<$:, _/binary>>, plain, _)     -> {ok, '!ruby/symbol'};
 resolve_scalar_tag(null, Value, plain, _) ->
   case re:run(Value, "^\\d+$", [{capture, none}]) of
@@ -79,6 +82,11 @@ construct_scalar('!ruby/symbol', <<$:, Atom/binary>>, _State) ->
 construct_scalar('tag:yaml.org,2002:int', Value, _State) ->
   {ok, list_to_integer(binary_to_list(Value))};
 
+construct_scalar('tag:yaml.org,2002:bool', <<"true">>, _State) ->
+  {ok, true};
+construct_scalar('tag:yaml.org,2002:bool', <<"false">>, _State) ->
+  {ok, false};
+
 construct_scalar(_, _, _State) -> nomatch.
 
 marshal(Object, State) when is_list(Object) or is_binary(Object) ->
@@ -90,6 +98,8 @@ marshal(Object, State) when is_list(Object) or is_binary(Object) ->
       end;
     X -> X
   end;
+marshal(true, _State) -> {scalar, <<"true">>, null, plain};
+marshal(false, _State) -> {scalar, <<"false">>, null, plain};
 marshal(Atom, State) when is_atom(Atom) ->
   AtomBin = atom_to_binary(Atom, utf8),
   yaml_schema_failsafe:marshal(<<$:, AtomBin/binary>>, State);
