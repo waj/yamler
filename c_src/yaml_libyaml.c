@@ -246,27 +246,33 @@ parser_done:
     return TUPLE2(status, term);
 }
 
-yaml_scalar_style_t parse_scalar_style(ErlNifEnv* env, ERL_NIF_TERM tag)
+int parse_scalar_style(ErlNifEnv* env, ERL_NIF_TERM tag, yaml_scalar_style_t *style)
 {
+  if (!enif_is_atom(env, tag)) return 0;
+
   for (int i = 0; i < 6; i++) {
     if (enif_compare(tag, ATOM(scalar_styles[i])) == 0) {
-      return i;
+      *style = i;
+      return 1;
     }
   }
 
-  return -1;
+  return 0;
 }
 
-yaml_mapping_style_t parse_mapping_style(ErlNifEnv* env, ERL_NIF_TERM tag)
+int parse_mapping_style(ErlNifEnv* env, ERL_NIF_TERM tag, yaml_mapping_style_t *style)
 {
+  if (!enif_is_atom(env, tag)) return 0;
+
   for (int i = 0; i < 3; i++)
   {
     if (enif_compare(tag, ATOM(mapping_styles[i])) == 0) {
-      return i;
+      *style = i;
+      return 1;
     }
   }
 
-  return -1;
+  return 0;
 }
 
 static int
@@ -292,10 +298,7 @@ initialize_scalar_event(ErlNifEnv* env, const ERL_NIF_TERM *elements, int arity,
   }
 
   if (!enif_is_binary(env, args[2])) goto end;
-  if (!enif_is_atom(env, args[3])) goto end;
-
-  style = parse_scalar_style(env, args[3]);
-  if (style == -1) goto end;
+  if (!parse_scalar_style(env, args[3], &style)) goto end;
 
   enif_inspect_binary(env, args[2], &bin);
   result = yaml_scalar_event_initialize(event, NULL, tag, (yaml_char_t*)bin.data, bin.size, tag == NULL ? 1 : 0, tag == NULL ? 1 : 0, style);
@@ -326,8 +329,7 @@ initialize_mapping_start_event(ErlNifEnv *env, const ERL_NIF_TERM *elements, int
     return 0;
   }
 
-  style = parse_mapping_style(env, args[2]);
-  if (style == -1) goto end;
+  if (!parse_mapping_style(env, args[2], &style)) goto end;
 
   result = yaml_mapping_start_event_initialize(event, NULL, tag, tag == NULL ? 1 : 0, style);
 
