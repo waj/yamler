@@ -63,9 +63,13 @@ resolve_scalar_tag(null, <<"false">>, plain, _State)      -> {ok, 'tag:yaml.org,
 
 resolve_scalar_tag(null, <<$:, _/binary>>, plain, _)     -> {ok, '!ruby/symbol'};
 resolve_scalar_tag(null, Value, plain, _) ->
-  case re:run(Value, "^\\d+$", [{capture, none}]) of
+  case re:run(Value, "^[1-9]\\d*$", [{capture, none}]) of
     match   -> {ok, 'tag:yaml.org,2002:int'};
-    nomatch -> {ok, 'tag:yaml.org,2002:str'}
+    nomatch ->
+      case re:run(Value, "^0[0-7]*$", [{capture, none}]) of
+        match ->   {ok, '!ruby/octal'};
+        nomatch -> {ok, 'tag:yaml.org,2002:str'}
+      end
   end;
 
 resolve_scalar_tag(null, _, _, _)                        -> {ok, 'tag:yaml.org,2002:str'}.
@@ -78,6 +82,9 @@ construct_scalar('tag:yaml.org,2002:str', Value, _State) ->
 
 construct_scalar('!ruby/symbol', <<$:, Atom/binary>>, _State) ->
   {ok, binary_to_atom(Atom, utf8)};
+
+construct_scalar('!ruby/octal', Value, _State) ->
+  {ok, binary_to_integer(Value, 8)};
 
 construct_scalar('tag:yaml.org,2002:int', Value, _State) ->
   {ok, list_to_integer(binary_to_list(Value))};
