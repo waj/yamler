@@ -84,7 +84,7 @@ construct_scalar('!ruby/symbol', <<$:, Atom/binary>>, _State) ->
   {ok, binary_to_atom(Atom, utf8)};
 
 construct_scalar('!ruby/octal', Value, _State) ->
-  {ok, binary_to_integer(Value, 8)};
+  {ok, list_to_integer(binary_to_list(Value), 8)};
 
 construct_scalar('tag:yaml.org,2002:int', Value, _State) ->
   {ok, list_to_integer(binary_to_list(Value))};
