@@ -446,11 +446,15 @@ end:
   return result;
 }
 
+#if (ERL_NIF_MAJOR_VERSION > 2 || (ERL_NIF_MAJOR_VERSION == 2 && ERL_NIF_MINOR_VERSION >= 6))
+#  define NIF_FUNC(name, arity, ptr) { name, arity, ptr, 0 }
+#else
+#  define NIF_FUNC(name, arity, ptr) { name, arity, ptr }
+#endif
 
 static ErlNifFunc nif_funcs[] = {
-    {"binary_to_libyaml_event_stream_rev", 1, binary_to_libyaml_event_stream_rev},
-    {"libyaml_emit", 1, libyaml_emit}
+    NIF_FUNC("binary_to_libyaml_event_stream_rev", 1, binary_to_libyaml_event_stream_rev),
+    NIF_FUNC("libyaml_emit", 1, libyaml_emit)
 };
-
 
 ERL_NIF_INIT(yaml_libyaml, nif_funcs, NULL, NULL, NULL, NULL)
