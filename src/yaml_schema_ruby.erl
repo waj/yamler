@@ -7,11 +7,41 @@
 -export([construct_mapping/3, construct_sequence/3, construct_scalar/3]).
 -export([marshal/2]).
 
-%% @doc Initialize state that will be made available to all schema calls.
-%% Put things like precompiled regular expressions and settings gleaned from the proplist.
-%% Use of this state variable is optional; you may just return a dummy value if your schema is simple.
+-record(state, {tag_regexs, bool_regexs}).
+
 -spec init(Opts::proplists:proplist()) -> term().
-init(_Opts) -> no_state.
+init(_Opts) ->
+  #state{
+    tag_regexs = compile_regexs(tag_regexs()),
+    bool_regexs = compile_regexs(bool_regexs())
+  }.
+
+tag_regexs() ->
+  [
+    {<<"(?i)^(y|yes|n|no|true|false|on|off)$">>, 'tag:yaml.org,2002:bool'},
+    {<<"^[1-9]\\d*$">>, 'tag:yaml.org,2002:int'},
+    {<<"^0[0-7]*$">>, '!ruby/octal'}
+  ].
+
+bool_regexs() ->
+  [
+    {<<"(?i)^(y|yes|true|on)$">>, true},
+    {<<"(?i)^(n|no|false|off)$">>, false}
+  ].
+
+compile_regexs(Regexs) ->
+  [{compile_regex(Regex), Result} || {Regex, Result} <- Regexs].
+
+compile_regex(Regex) ->
+  {ok, Compiled} = re:compile(Regex),
+  Compiled.
+
+eval_regexs(_, []) -> nomatch;
+eval_regexs(Value, [{Regex, Result} | T]) ->
+  case re:run(Value, Regex, [{capture, none}]) of
+    match -> {ok, Result};
+    nomatch -> eval_regexs(Value, T)
+  end.
 
 %% @doc Destroy the schema's state.
 -spec destroy(term()) -> term().
@@ -58,18 +88,12 @@ construct_sequence(_, _, _State) -> nomatch.
 resolve_scalar_tag(<<"!">>, _, _, _)                     -> {ok, 'tag:yaml.org,2002:str'};
 resolve_scalar_tag(<<"tag:yaml.org,2002:str">>, _, _, _) -> {ok, 'tag:yaml.org,2002:str'};
 
-resolve_scalar_tag(null, <<"true">>, plain, _State)      -> {ok, 'tag:yaml.org,2002:bool'};
-resolve_scalar_tag(null, <<"false">>, plain, _State)      -> {ok, 'tag:yaml.org,2002:bool'};
-
 resolve_scalar_tag(null, <<$:, _/binary>>, plain, _)     -> {ok, '!ruby/symbol'};
-resolve_scalar_tag(null, Value, plain, _) ->
-  case re:run(Value, "^[1-9]\\d*$", [{capture, none}]) of
-    match   -> {ok, 'tag:yaml.org,2002:int'};
-    nomatch ->
-      case re:run(Value, "^0[0-7]*$", [{capture, none}]) of
-        match ->   {ok, '!ruby/octal'};
-        nomatch -> {ok, 'tag:yaml.org,2002:str'}
-      end
+
+resolve_scalar_tag(null, Value, plain, #state{tag_regexs = Regexs}) ->
+  case eval_regexs(Value, Regexs) of
+    {ok, Tag} -> {ok, Tag};
+    nomatch -> {ok, 'tag:yaml.org,2002:str'}
   end;
 
 resolve_scalar_tag(null, _, _, _)                        -> {ok, 'tag:yaml.org,2002:str'}.
@@ -89,10 +113,8 @@ construct_scalar('!ruby/octal', Value, _State) ->
 construct_scalar('tag:yaml.org,2002:int', Value, _State) ->
   {ok, list_to_integer(binary_to_list(Value))};
 
-construct_scalar('tag:yaml.org,2002:bool', <<"true">>, _State) ->
-  {ok, true};
-construct_scalar('tag:yaml.org,2002:bool', <<"false">>, _State) ->
-  {ok, false};
+construct_scalar('tag:yaml.org,2002:bool', Value, #state{bool_regexs = Regexs}) ->
+  eval_regexs(Value, Regexs);
 
 construct_scalar(_, _, _State) -> nomatch.
 
