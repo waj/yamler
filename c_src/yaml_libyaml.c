@@ -446,7 +446,7 @@ end:
   return result;
 }
 
-#if (ERL_NIF_MAJOR_VERSION > 2 || (ERL_NIF_MAJOR_VERSION == 2 && ERL_NIF_MINOR_VERSION >= 6))
+#if (ERL_NIF_MAJOR_VERSION > 2 || (ERL_NIF_MAJOR_VERSION == 2 && ERL_NIF_MINOR_VERSION >= 7))
 #  define NIF_FUNC(name, arity, ptr) { name, arity, ptr, 0 }
 #else
 #  define NIF_FUNC(name, arity, ptr) { name, arity, ptr }
